@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Afaq Tours Dubai - Chatbot</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    #chat-container, #history-container {
+      max-height: 70vh;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+    .chat-bubble {
+      max-width: 80%;
+      margin: 0.75rem 1rem;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .user-bubble {
+      background-color: #bfdbfe;
+      color: #1e3a8a;
+    }
+    .bot-bubble {
+      background-color: #e5e7eb;
+      color: #111827;
+    }
+    .message-label {
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    .header {
+      background: linear-gradient(to right, #1e3a8a, #3b82f6);
+    }
+    .history-item {
+      font-size: 0.85rem;
+      padding: 0.5rem;
+      border-bottom: 1px solid #d1d5db;
+    }
+    .history-user {
+      color: #1e3a8a;
+      font-weight: bold;
+    }
+    .history-bot {
+      color: #4b5563;
+    }
+    .history-footer {
+      position: sticky;
+      bottom: 0;
+      background: white;
+      padding: 0.5rem;
+      border-top: 1px solid #d1d5db;
+      text-align: right;
+    }
+    .clear-history-btn {
+      background-color: #111827;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      transition: background-color 0.3s;
+    }
+    .clear-history-btn:hover {
+      background-color: #1f2937;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-r from-black via-blue-900 to-blue-700 flex items-center justify-center min-h-screen">
+  <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-5xl flex">
+    <!-- Sidebar History -->
+    <div class="w-1/3 border-r pr-4">
+      <h2 class="text-xl font-bold text-gray-700 mb-4">Chat History</h2>
+      <div id="history-container" class="bg-white rounded-lg border p-2">
+        {% for message in chat_history %}
+          <div class="history-item {% if message.role == 'user' %}history-user{% else %}history-bot{% endif %}">
+            <span>{{ 'User' if message.role == 'user' else 'Bot' }}: {{ ' '.join(message.content.split()[:40]) }}{% if message.content.split()|length > 40 %}...{% endif %}</span>
+          </div>
+        {% endfor %}
+        <div class="history-footer">
+          <form action="/clear_history" method="post">
+            <button type="submit" class="clear-history-btn">Clear History</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="w-2/3 pl-6">
+      <div class="header rounded-t-lg p-4 text-white flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold">Afaq Tours Dubai</h1>
+          <p class="text-gray-200 mt-1">Your Premier Guide to Exploring Dubai</p>
+        </div>
+        <img src="/static/logo.png" alt="Logo" class="h-24 w-auto rounded-md shadow-md" />
+      </div>
+      <div id="chat-container" class="border rounded-lg p-4 bg-gray-50 mt-4 mb-4">
+        {% for message in chat_history %}
+          <div class="{% if message.role == 'user' %}user-bubble{% else %}bot-bubble{% endif %} chat-bubble">
+            <span class="message-label">{{ 'User' if message.role == 'user' else 'Bot' }}</span>
+            <span>{{ message.content }}</span>
+            {% if message.role == 'assistant' %}
+              <div class="flex gap-2 mt-1">
+                <form action="/feedback" method="post">
+                  <input type="hidden" name="message_index" value="{{ loop.index0 }}">
+                  <input type="hidden" name="rating" value="up">
+                  <button type="submit" class="text-green-600 hover:text-green-800">👍</button>
+                </form>
+                <form action="/feedback" method="post">
+                  <input type="hidden" name="message_index" value="{{ loop.index0 }}">
+                  <input type="hidden" name="rating" value="down">
+                  <button type="submit" class="text-red-600 hover:text-red-800">👎</button>
+                </form>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+      <form action="/chat" method="post" class="flex gap-2">
+        <input type="text" name="message" id="message-input" placeholder="Ask about Dubai tourism..." class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+        <button type="submit" class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition">Send</button>
+      </form>
+
+      <!-- Voice Input -->
+      <div class="mt-2 flex items-center gap-4">
+        <button onclick="startRecording()" class="bg-gray-200 px-3 py-1 rounded-lg hover:bg-gray-300">🎤 Talk</button>
+        <audio id="audioReply" controls style="display:none;"></audio>
+      </div>
+
+      <!-- Suggested Prompts -->
+      <div class="mt-4 flex gap-2 flex-wrap">
+        <button onclick="document.getElementById('message-input').value='Top attractions in Dubai'" class="bg-gray-200 px-3 py-1 rounded-lg hover:bg-gray-300">Top Attractions</button>
+        <button onclick="document.getElementById('message-input').value='Best guided tours'" class="bg-gray-200 px-3 py-1 rounded-lg hover:bg-gray-300">Guided Tours</button>
+        <button onclick="document.getElementById('message-input').value='Luxury hotels in Dubai'" class="bg-gray-200 px-3 py-1 rounded-lg hover:bg-gray-300">Luxury Hotels</button>
+      </div>
+
+      <!-- Image Upload -->
+      <form action="/upload_image" method="post" enctype="multipart/form-data" class="flex gap-2 mt-4">
+        <input type="file" name="image" accept="image/*" class="flex-1 p-3 border rounded-lg" />
+        <button type="submit" class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition">Upload Image</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- JS for Scroll and Recording -->
+  <script>
+    const chatContainer = document.getElementById('chat-container');
+    const historyContainer = document.getElementById('history-container');
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    historyContainer.scrollTop = historyContainer.scrollHeight;
+
+    let recorder, audioBlob;
+
+    async function startRecording() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder = new MediaRecorder(stream);
+      let chunks = [];
+
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = async () => {
+        audioBlob = new Blob(chunks, { type: 'audio/wav' });
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "recording.wav");
+
+        const response = await fetch("/voice_chat", {
+          method: "POST",
+          body: formData
+        });
+
+        const audioUrl = URL.createObjectURL(await response.blob());
+        const audio = document.getElementById("audioReply");
+        audio.src = audioUrl;
+        audio.style.display = "block";
+        audio.play();
+      };
+
+      recorder.start();
+      setTimeout(() => recorder.stop(), 5000);  // Record for 5 seconds
+    }
+  </script>
+</body>
+</html>
